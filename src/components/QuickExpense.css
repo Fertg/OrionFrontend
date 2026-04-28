@@ -80,6 +80,24 @@
   color: var(--ink);
 }
 
+.preview-date-wrap {
+  position: relative;
+}
+
+.preview-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 4px 8px;
+  font-size: var(--t-small);
+  color: var(--ink);
+  border-radius: var(--radius);
+  transition: background var(--transition);
+}
+.preview-date-btn:hover {
+  background: var(--line-soft);
+}
+
 .quick-hint {
   margin-top: var(--s-3);
   display: flex;

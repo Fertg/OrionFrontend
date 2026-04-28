@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { parseExpenseInput } from '../utils/parseExpense.js';
 import { formatEur, formatDateRelative } from '../utils/format.js';
 import { api } from '../api/client.js';
+import { DatePicker } from './DatePicker.jsx';
 import './QuickExpense.css';
 
 export function QuickExpense({ categories, onCreated }) {
@@ -11,6 +12,8 @@ export function QuickExpense({ categories, onCreated }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [overrideDate, setOverrideDate] = useState(null); // si el usuario eligió fecha en el picker
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const inputRef = useRef(null);
 
   // Re-parsea con cada cambio
@@ -20,6 +23,7 @@ export function QuickExpense({ categories, onCreated }) {
     if (!result) {
       setSuggestion(null);
       setSelectedCategoryId(null);
+      setOverrideDate(null);
     }
   }, [text]);
 
@@ -41,6 +45,13 @@ export function QuickExpense({ categories, onCreated }) {
     return () => clearTimeout(handler);
   }, [parsed?.description]);
 
+  // Si el usuario escribe una fecha en el texto, prevalece sobre el override del picker
+  useEffect(() => {
+    setOverrideDate(null);
+  }, [parsed?.occurredAt]);
+
+  const effectiveDate = overrideDate || parsed?.occurredAt;
+
   const handleSubmit = useCallback(async (e) => {
     e?.preventDefault();
     if (!parsed || submitting) return;
@@ -51,12 +62,13 @@ export function QuickExpense({ categories, onCreated }) {
       await api.createExpense({
         description: parsed.description,
         amountCents: parsed.amountCents,
-        occurredAt: parsed.occurredAt,
+        occurredAt: effectiveDate,
         categoryId: selectedCategoryId || undefined,
       });
       setText('');
       setSuggestion(null);
       setSelectedCategoryId(null);
+      setOverrideDate(null);
       inputRef.current?.focus();
       onCreated?.();
     } catch (err) {
@@ -64,7 +76,7 @@ export function QuickExpense({ categories, onCreated }) {
     } finally {
       setSubmitting(false);
     }
-  }, [parsed, selectedCategoryId, submitting, onCreated]);
+  }, [parsed, selectedCategoryId, submitting, onCreated, effectiveDate]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSubmit(e);
@@ -112,7 +124,26 @@ export function QuickExpense({ categories, onCreated }) {
           </div>
           <div className="preview-line">
             <span className="preview-label">Fecha</span>
-            <span className="preview-value">{formatDateRelative(parsed.occurredAt)}</span>
+            <div className="preview-date-wrap">
+              <button
+                className="preview-date-btn"
+                onClick={() => setDatePickerOpen((v) => !v)}
+                type="button"
+              >
+                {formatDateRelative(effectiveDate)}
+                <span className="cat-picker-chevron">{datePickerOpen ? '▴' : '▾'}</span>
+              </button>
+              {datePickerOpen && (
+                <DatePicker
+                  value={effectiveDate}
+                  onChange={(iso) => {
+                    setOverrideDate(iso);
+                    setDatePickerOpen(false);
+                  }}
+                  onClose={() => setDatePickerOpen(false)}
+                />
+              )}
+            </div>
           </div>
           <div className="preview-line">
             <span className="preview-label">Categoría</span>
