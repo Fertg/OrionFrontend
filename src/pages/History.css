@@ -125,6 +125,17 @@
   background: var(--line-soft);
 }
 
+/* En móvil/touch siempre visible */
+@media (hover: none), (max-width: 768px) {
+  .exp-delete {
+    opacity: 0.6;
+  }
+  .exp-delete:active {
+    opacity: 1;
+    color: var(--negative);
+  }
+}
+
 .exp-cat-menu {
   position: absolute;
   top: calc(100% + 2px);
