@@ -12,17 +12,20 @@ import './Dashboard.css';
 export function DashboardPage() {
   const [data, setData] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [upcoming, setUpcoming] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      const [dash, cats] = await Promise.all([
+      const [dash, cats, upcoming] = await Promise.all([
         api.dashboard(),
         api.listCategories(),
+        api.upcomingRecurring(30).catch(() => ({ upcoming: [] })),
       ]);
       setData(dash);
       setCategories(cats.categories);
+      setUpcoming(upcoming.upcoming || []);
       setError(null);
     } catch (err) {
       setError(err.message || 'Error cargando datos');
@@ -55,8 +58,55 @@ export function DashboardPage() {
         <PaceSection data={data} />
         <CategoryBreakdown data={data} />
       </div>
+
+      {upcoming.length > 0 && <UpcomingSection upcoming={upcoming} />}
     </div>
   );
+}
+
+/* ============ Próximos cargos recurrentes ============ */
+function UpcomingSection({ upcoming }) {
+  const total = upcoming.reduce((s, u) => s + Number(u.amount_cents), 0);
+
+  return (
+    <section className="panel-block upcoming-section">
+      <div className="upcoming-head">
+        <h2 className="block-title">Próximos cargos · 30 días</h2>
+        <div className="upcoming-total mono tabular">
+          {formatEur(total, { withCents: false })}
+        </div>
+      </div>
+      <ul className="upcoming-list">
+        {upcoming.map((u) => (
+          <li key={u.id} className="upcoming-row">
+            <div className="upcoming-date mono">
+              {formatUpcomingDate(u.next_date)}
+            </div>
+            <span
+              className="cat-dot"
+              style={{ background: `#${u.category_color || '8B8B8B'}` }}
+            />
+            <div className="upcoming-name">{u.description}</div>
+            <div className="upcoming-amount mono tabular">{formatEur(u.amount_cents)}</div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function formatUpcomingDate(iso) {
+  const [, m, d] = iso.split('-').map(Number);
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = (() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return t.toISOString().slice(0, 10);
+  })();
+  if (iso === today) return 'hoy';
+  if (iso === tomorrow) return 'mañana';
+  return `${d} ${months[m - 1]}`;
 }
 
 /* ============ Big number — protagoniza "lo que queda" si hay presupuesto ============ */

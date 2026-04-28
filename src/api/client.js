@@ -102,4 +102,12 @@ export const api = {
   listBudgets: () => request('/budgets'),
   setBudget: (data) => request('/budgets', { method: 'POST', body: data }),
   clearBudget: (categoryId = 'global') => request(`/budgets/${categoryId || 'global'}`, { method: 'DELETE' }),
+
+  // Suscripciones recurrentes
+  listRecurring: () => request('/recurring'),
+  upcomingRecurring: (days = 30) => request(`/recurring/upcoming?days=${days}`),
+  createRecurring: (data) => request('/recurring', { method: 'POST', body: data }),
+  updateRecurring: (id, data) => request(`/recurring/${id}`, { method: 'PATCH', body: data }),
+  toggleRecurring: (id) => request(`/recurring/${id}/toggle`, { method: 'POST' }),
+  deleteRecurring: (id) => request(`/recurring/${id}`, { method: 'DELETE' }),
 };

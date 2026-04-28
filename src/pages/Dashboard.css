@@ -347,3 +347,59 @@
   font-size: var(--t-small);
   font-style: italic;
 }
+
+/* ===== Próximos cargos ===== */
+.upcoming-section {
+  margin-top: var(--s-7);
+}
+
+.upcoming-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--s-4);
+}
+
+.upcoming-total {
+  font-size: var(--t-h3);
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.upcoming-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.upcoming-row {
+  display: grid;
+  grid-template-columns: 64px 12px 1fr auto;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.upcoming-row:last-child { border-bottom: none; }
+
+.upcoming-date {
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.upcoming-name {
+  font-size: var(--t-body);
+  color: var(--ink);
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upcoming-amount {
+  font-size: var(--t-body);
+  color: var(--ink-soft);
+  font-weight: 500;
+}

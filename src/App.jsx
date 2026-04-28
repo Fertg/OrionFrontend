@@ -6,6 +6,7 @@ import { LoginPage } from './pages/Login.jsx';
 import { DashboardPage } from './pages/Dashboard.jsx';
 import { HistoryPage } from './pages/History.jsx';
 import { SettingsPage } from './pages/Settings.jsx';
+import { RecurringPage } from './pages/Recurring.jsx';
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
           >
             <Route path="/" element={<DashboardPage />} />
             <Route path="/historico" element={<HistoryPage />} />
+            <Route path="/suscripciones" element={<RecurringPage />} />
             <Route path="/ajustes" element={<SettingsPage />} />
           </Route>
         </Routes>
