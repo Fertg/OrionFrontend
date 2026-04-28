@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { QuickExpense } from '../components/QuickExpense.jsx';
 import {
@@ -58,60 +59,134 @@ export function DashboardPage() {
   );
 }
 
-/* ============ Big number — el gasto del mes ============ */
+/* ============ Big number — protagoniza "lo que queda" si hay presupuesto ============ */
 function BigNumber({ data }) {
-  const { integer, decimal } = splitEur(data.currentMonth.totalCents);
   const delta = data.deltaVsPreviousPct;
   const hasDelta = delta !== null && Number.isFinite(delta);
 
   const budget = data.monthlyBudgetCents;
   const spent = data.currentMonth.totalCents;
   const projected = data.currentMonth.projectedTotalCents;
+  const { daysElapsed, daysInMonth } = data.period;
+  const daysLeft = Math.max(0, daysInMonth - daysElapsed);
 
   const hasBudget = budget && budget > 0;
-  const usedPct = hasBudget ? Math.min(100, (spent / budget) * 100) : 0;
-  const overBudget = hasBudget && spent > budget;
-  const willOverBudget = hasBudget && !overBudget && projected > budget;
+
+  // Sin presupuesto → modo clásico (gasto del mes en grande)
+  if (!hasBudget) {
+    const { integer, decimal } = splitEur(spent);
+    return (
+      <section className="big-number">
+        <div className="big-number-label">Gasto del mes</div>
+        <div className="big-number-value mono tabular">
+          <span className="big-int">{integer}</span>
+          <span className="big-dec">,{decimal} €</span>
+        </div>
+        {hasDelta && (
+          <div className={`big-delta ${delta >= 0 ? 'up' : 'down'}`}>
+            {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%{' '}
+            <span className="big-delta-label">vs mes anterior</span>
+          </div>
+        )}
+        <div className="big-budget-hint">
+          <Link to="/ajustes" className="big-budget-link">Fijar presupuesto mensual →</Link>
+        </div>
+      </section>
+    );
+  }
+
+  // Con presupuesto → "Te quedan X" como protagonista
+  const remaining = budget - spent;
+  const overBudget = remaining < 0;
+  const willOverBudget = !overBudget && projected > budget;
+  const usedPct = Math.min(100, (spent / budget) * 100);
+
+  // Ritmo diario seguro: lo que puedes gastar cada día restante para no pasarte
+  const safeDaily = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
+  const actualDaily = data.currentMonth.dailyAverageCents;
+
+  const remainingAbs = Math.abs(remaining);
+  const { integer, decimal } = splitEur(remainingAbs);
+
+  const status = overBudget ? 'over' : willOverBudget ? 'warn' : 'ok';
 
   return (
     <section className="big-number">
       <div className="big-number-label">
-        Gasto del mes
-        {hasBudget && (
-          <span className="big-number-budget mono tabular">
-            de {formatEur(budget, { withCents: false })}
-          </span>
-        )}
+        {overBudget ? 'Te has pasado' : 'Te quedan este mes'}
       </div>
-      <div className="big-number-value mono tabular">
+      <div className={`big-number-value mono tabular status-${status}`}>
+        {overBudget && <span className="big-sign">−</span>}
         <span className="big-int">{integer}</span>
         <span className="big-dec">,{decimal} €</span>
       </div>
-      {hasDelta && (
-        <div className={`big-delta ${delta >= 0 ? 'up' : 'down'}`}>
-          {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%{' '}
-          <span className="big-delta-label">vs mes anterior</span>
-        </div>
-      )}
 
-      {hasBudget && (
-        <div className="budget-progress">
-          <div className="budget-bar">
+      <div className="big-meta">
+        <span className="big-spent mono tabular">
+          {formatEur(spent, { withCents: false })} de {formatEur(budget, { withCents: false })}
+        </span>
+        {hasDelta && (
+          <span className={`big-delta-inline ${delta >= 0 ? 'up' : 'down'}`}>
+            {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}% vs mes anterior
+          </span>
+        )}
+      </div>
+
+      <div className="budget-progress">
+        <div className="budget-bar">
+          <div
+            className={`budget-fill ${status}`}
+            style={{ width: `${usedPct}%` }}
+          />
+          {/* Marca del día actual del mes */}
+          {!overBudget && (
             <div
-              className={`budget-fill ${overBudget ? 'over' : willOverBudget ? 'warn' : 'ok'}`}
-              style={{ width: `${usedPct}%` }}
+              className="budget-day-marker"
+              style={{ left: `${(daysElapsed / daysInMonth) * 100}%` }}
+              title={`Día ${daysElapsed} de ${daysInMonth}`}
             />
-          </div>
-          <div className="budget-info mono">
-            <span>{usedPct.toFixed(0)}% usado</span>
-            {overBudget && <span className="budget-warning">Te has pasado {formatEur(spent - budget, { withCents: false })}</span>}
-            {willOverBudget && <span className="budget-warning">A este ritmo te pasarás {formatEur(projected - budget, { withCents: false })}</span>}
-            {!overBudget && !willOverBudget && (
-              <span>Quedan {formatEur(budget - spent, { withCents: false })}</span>
-            )}
-          </div>
+          )}
         </div>
-      )}
+      </div>
+
+      <div className="big-projection">
+        {overBudget && (
+          <>
+            <span className="proj-icon">⚠</span>
+            <span>Llevas {formatEur(remainingAbs, { withCents: false })} por encima del presupuesto</span>
+          </>
+        )}
+        {willOverBudget && (
+          <>
+            <span className="proj-icon">⚠</span>
+            <span>
+              A este ritmo cerrarás en{' '}
+              <strong className="mono tabular">{formatEur(projected, { withCents: false })}</strong>
+              {' '}— {formatEur(projected - budget, { withCents: false })} por encima
+            </span>
+          </>
+        )}
+        {!overBudget && !willOverBudget && daysLeft > 0 && (
+          <>
+            <span className="proj-icon ok">✓</span>
+            <span>
+              Quedan <strong className="mono">{daysLeft}</strong> días.
+              Puedes gastar hasta{' '}
+              <strong className="mono tabular">{formatEur(safeDaily, { withCents: false })}</strong>
+              {' '}al día
+              {actualDaily > 0 && actualDaily < safeDaily && (
+                <span className="proj-positive"> · vas {Math.round(((safeDaily - actualDaily) / safeDaily) * 100)}% bajo el ritmo</span>
+              )}
+            </span>
+          </>
+        )}
+        {!overBudget && !willOverBudget && daysLeft === 0 && (
+          <>
+            <span className="proj-icon ok">✓</span>
+            <span>Has cerrado el mes con {formatEur(remaining, { withCents: false })} de margen</span>
+          </>
+        )}
+      </div>
     </section>
   );
 }
