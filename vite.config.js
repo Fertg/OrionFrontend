@@ -10,5 +10,8 @@ export default defineConfig({
   preview: {
     port: 4173,
     host: true,
+    // Aceptar cualquier host. Es seguro porque preview solo se usa para
+    // servir el build estático (ya compilado, sin código del backend).
+    allowedHosts: true,
   },
 });

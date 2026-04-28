@@ -30,13 +30,22 @@ async function request(path, { method = 'GET', body, signal } = {}) {
     });
   } catch (err) {
     if (err.name === 'AbortError') throw err;
-    throw new ApiError('Sin conexión con el servidor', 0);
+    // Probablemente CORS o red caída
+    throw new ApiError(
+      `No se pudo conectar con la API en ${API_URL}. Revisa VITE_API_URL y que el backend esté levantado.`,
+      0
+    );
   }
 
-  if (res.status === 401) {
+  // Solo tratamos 401 como "sesión expirada" si NO es del endpoint de login
+  // (en login un 401 significa "credencial inválida", no "tu sesión caducó").
+  const isLoginAttempt = path === '/auth/google';
+
+  if (res.status === 401 && !isLoginAttempt) {
     tokenStore.clear();
-    // recargamos para volver a login limpio
-    window.location.href = '/login';
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
     throw new ApiError('Sesión expirada', 401);
   }
 
@@ -51,10 +60,14 @@ async function request(path, { method = 'GET', body, signal } = {}) {
 
   if (!res.ok) {
     throw new ApiError(
-      data?.error || `Error ${res.status}`,
+      data?.error || `Error ${res.status} en ${path}`,
       res.status,
       data?.details
     );
+  }
+
+  if (data == null) {
+    throw new ApiError(`Respuesta vacía del servidor en ${path}`, res.status);
   }
 
   return data;
