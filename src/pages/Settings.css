@@ -140,3 +140,70 @@
   border: 2px solid var(--ink);
   transform: scale(1.15);
 }
+
+/* ===== Budget ===== */
+.budget-current {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.budget-current-amount {
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+
+.budget-current-meta {
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+}
+
+.budget-clear {
+  margin-left: auto;
+  font-size: var(--t-small);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  transition: color var(--transition);
+}
+.budget-clear:hover {
+  color: var(--negative);
+}
+
+.budget-empty p {
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+  margin: 0 0 var(--s-3);
+  max-width: 460px;
+  line-height: 1.5;
+}
+
+.budget-form { max-width: 320px; }
+
+.budget-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.budget-input-row .input {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-align: right;
+  padding: 12px 16px;
+}
+
+.budget-currency {
+  font-size: 20px;
+  color: var(--ink-muted);
+}
+
+.budget-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+}

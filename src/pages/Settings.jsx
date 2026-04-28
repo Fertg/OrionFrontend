@@ -1,17 +1,23 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client.js';
+import { formatEur, parseAmountToCents } from '../utils/format.js';
 import './Settings.css';
 
 export function SettingsPage() {
   const [categories, setCategories] = useState([]);
+  const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const { categories } = await api.listCategories();
-      setCategories(categories);
+      const [cats, buds] = await Promise.all([
+        api.listCategories(),
+        api.listBudgets(),
+      ]);
+      setCategories(cats.categories);
+      setBudgets(buds.budgets);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -36,6 +42,8 @@ export function SettingsPage() {
       </header>
 
       {error && <div className="error-banner">{error}</div>}
+
+      <BudgetSection budgets={budgets} onChange={load} />
 
       <section className="settings-section">
         <div className="section-head">
@@ -73,6 +81,107 @@ export function SettingsPage() {
         />
       )}
     </div>
+  );
+}
+
+/* ============= Sección de presupuesto ============= */
+function BudgetSection({ budgets, onChange }) {
+  const globalBudget = budgets.find((b) => b.category_id === null);
+  const [editing, setEditing] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const startEdit = () => {
+    setAmount(globalBudget ? String(globalBudget.monthly_cents / 100).replace('.', ',') : '');
+    setEditing(true);
+    setErr(null);
+  };
+
+  const handleSave = async (e) => {
+    e?.preventDefault();
+    const cents = parseAmountToCents(amount);
+    if (!cents) {
+      setErr('Importe inválido');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.setBudget({ categoryId: null, monthlyCents: cents });
+      setEditing(false);
+      onChange();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!confirm('¿Eliminar el presupuesto mensual?')) return;
+    await api.clearBudget('global');
+    onChange();
+  };
+
+  return (
+    <section className="settings-section">
+      <div className="section-head">
+        <h2 className="section-title">Presupuesto mensual</h2>
+        {globalBudget && !editing && (
+          <button className="btn-ghost section-action" onClick={startEdit}>
+            Editar
+          </button>
+        )}
+      </div>
+
+      {!editing && globalBudget && (
+        <div className="budget-current">
+          <div className="budget-current-amount mono tabular">
+            {formatEur(globalBudget.monthly_cents, { withCents: false })}
+          </div>
+          <div className="budget-current-meta">al mes</div>
+          <button className="btn-ghost budget-clear" onClick={handleClear}>
+            Eliminar
+          </button>
+        </div>
+      )}
+
+      {!editing && !globalBudget && (
+        <div className="budget-empty">
+          <p>No tienes presupuesto fijado. Define un máximo mensual y Orion te avisará cuando vayas a pasarte.</p>
+          <button className="btn btn-secondary" onClick={startEdit}>
+            Fijar presupuesto
+          </button>
+        </div>
+      )}
+
+      {editing && (
+        <form className="budget-form" onSubmit={handleSave}>
+          <label className="label">Importe máximo al mes</label>
+          <div className="budget-input-row">
+            <input
+              className="input mono tabular"
+              type="text"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="1500"
+              autoFocus
+            />
+            <span className="budget-currency mono">€</span>
+          </div>
+          {err && <div className="error-banner" style={{ marginTop: 'var(--s-3)' }}>{err}</div>}
+          <div className="budget-form-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={submitting || !amount}>
+              {submitting ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

@@ -64,9 +64,25 @@ function BigNumber({ data }) {
   const delta = data.deltaVsPreviousPct;
   const hasDelta = delta !== null && Number.isFinite(delta);
 
+  const budget = data.monthlyBudgetCents;
+  const spent = data.currentMonth.totalCents;
+  const projected = data.currentMonth.projectedTotalCents;
+
+  const hasBudget = budget && budget > 0;
+  const usedPct = hasBudget ? Math.min(100, (spent / budget) * 100) : 0;
+  const overBudget = hasBudget && spent > budget;
+  const willOverBudget = hasBudget && !overBudget && projected > budget;
+
   return (
     <section className="big-number">
-      <div className="big-number-label">Gasto del mes</div>
+      <div className="big-number-label">
+        Gasto del mes
+        {hasBudget && (
+          <span className="big-number-budget mono tabular">
+            de {formatEur(budget, { withCents: false })}
+          </span>
+        )}
+      </div>
       <div className="big-number-value mono tabular">
         <span className="big-int">{integer}</span>
         <span className="big-dec">,{decimal} €</span>
@@ -75,6 +91,25 @@ function BigNumber({ data }) {
         <div className={`big-delta ${delta >= 0 ? 'up' : 'down'}`}>
           {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%{' '}
           <span className="big-delta-label">vs mes anterior</span>
+        </div>
+      )}
+
+      {hasBudget && (
+        <div className="budget-progress">
+          <div className="budget-bar">
+            <div
+              className={`budget-fill ${overBudget ? 'over' : willOverBudget ? 'warn' : 'ok'}`}
+              style={{ width: `${usedPct}%` }}
+            />
+          </div>
+          <div className="budget-info mono">
+            <span>{usedPct.toFixed(0)}% usado</span>
+            {overBudget && <span className="budget-warning">Te has pasado {formatEur(spent - budget, { withCents: false })}</span>}
+            {willOverBudget && <span className="budget-warning">A este ritmo te pasarás {formatEur(projected - budget, { withCents: false })}</span>}
+            {!overBudget && !willOverBudget && (
+              <span>Quedan {formatEur(budget - spent, { withCents: false })}</span>
+            )}
+          </div>
         </div>
       )}
     </section>

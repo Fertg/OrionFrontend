@@ -38,20 +38,45 @@ const MONTHS_ES_SHORT = [
 ];
 
 /**
+ * Normaliza la fecha a formato YYYY-MM-DD aceptando:
+ * - string "2026-04-25" o "2026-04-25T00:00:00.000Z"
+ * - objeto Date
+ */
+function toIso(input) {
+  if (!input) return null;
+  if (typeof input === 'string') {
+    // Si es ISO completo, recorta a fecha
+    if (input.length >= 10) return input.slice(0, 10);
+    return input;
+  }
+  if (input instanceof Date) {
+    const y = input.getFullYear();
+    const m = String(input.getMonth() + 1).padStart(2, '0');
+    const d = String(input.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return null;
+}
+
+/**
  * "2026-04-25" -> "25 abr"
  */
-export function formatDateShort(yyyymmdd) {
-  if (!yyyymmdd) return '';
-  const [y, m, d] = yyyymmdd.split('-').map(Number);
+export function formatDateShort(input) {
+  const iso = toIso(input);
+  if (!iso) return '';
+  const [, m, d] = iso.split('-').map(Number);
+  if (!m || !d) return '';
   return `${d} ${MONTHS_ES_SHORT[m - 1]}`;
 }
 
 /**
  * "2026-04-25" -> "25 de abril"
  */
-export function formatDateLong(yyyymmdd) {
-  if (!yyyymmdd) return '';
-  const [y, m, d] = yyyymmdd.split('-').map(Number);
+export function formatDateLong(input) {
+  const iso = toIso(input);
+  if (!iso) return '';
+  const [, m, d] = iso.split('-').map(Number);
+  if (!m || !d) return '';
   return `${d} de ${MONTHS_ES[m - 1]}`;
 }
 
@@ -66,16 +91,17 @@ export function currentMonthLabel() {
 /**
  * "2026-04-25" -> "Hoy" / "Ayer" / "25 abr"
  */
-export function formatDateRelative(yyyymmdd) {
-  if (!yyyymmdd) return '';
+export function formatDateRelative(input) {
+  const iso = toIso(input);
+  if (!iso) return '';
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = todayIso();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().slice(0, 10);
-  if (yyyymmdd === todayStr) return 'Hoy';
-  if (yyyymmdd === yesterdayStr) return 'Ayer';
-  return formatDateShort(yyyymmdd);
+  if (iso === todayStr) return 'Hoy';
+  if (iso === yesterdayStr) return 'Ayer';
+  return formatDateShort(iso);
 }
 
 /**

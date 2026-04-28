@@ -97,4 +97,9 @@ export const api = {
   suggestCategory: (description) =>
     request('/expenses/suggest', { method: 'POST', body: { description } }),
   dashboard: () => request('/expenses/dashboard'),
+
+  // Presupuestos
+  listBudgets: () => request('/budgets'),
+  setBudget: (data) => request('/budgets', { method: 'POST', body: data }),
+  clearBudget: (categoryId = 'global') => request(`/budgets/${categoryId || 'global'}`, { method: 'DELETE' }),
 };
