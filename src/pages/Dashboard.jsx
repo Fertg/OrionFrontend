@@ -2,6 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { QuickExpense } from '../components/QuickExpense.jsx';
+import { ProgressRing } from '../components/ProgressRing.jsx';
+import { Sparkline } from '../components/Sparkline.jsx';
+import { useCountUp } from '../utils/useCountUp.js';
 import {
   formatEur,
   splitEur,
@@ -18,14 +21,14 @@ export function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const [dash, cats, upcoming] = await Promise.all([
+      const [dash, cats, upcomingResp] = await Promise.all([
         api.dashboard(),
         api.listCategories(),
         api.upcomingRecurring(30).catch(() => ({ upcoming: [] })),
       ]);
       setData(dash);
       setCategories(cats.categories);
-      setUpcoming(upcoming.upcoming || []);
+      setUpcoming(upcomingResp.upcoming || []);
       setError(null);
     } catch (err) {
       setError(err.message || 'Error cargando datos');
@@ -37,7 +40,11 @@ export function DashboardPage() {
   useEffect(() => { load(); }, [load]);
 
   if (loading) {
-    return <div className="loading" style={{ padding: 'var(--s-7)' }}>Cargando</div>;
+    return (
+      <div className="dashboard">
+        <DashboardSkeleton />
+      </div>
+    );
   }
   if (error) {
     return <div className="error-banner">{error}</div>;
@@ -47,16 +54,28 @@ export function DashboardPage() {
   return (
     <div className="dashboard fade-in">
       <header className="dashboard-header">
-        <div className="month-label">{currentMonthLabel()}</div>
+        <div>
+          <div className="month-label">{currentMonthLabel()}</div>
+          <h1 className="dashboard-title">Resumen</h1>
+        </div>
+        <Sparkline
+          values={buildDailySeries(data)}
+          width={140}
+          height={40}
+          color="var(--ink-soft)"
+          fill
+        />
       </header>
 
       <QuickExpense categories={categories} onCreated={load} />
 
-      <BigNumber data={data} />
+      <HeroCard data={data} />
+
+      <StatGrid data={data} />
 
       <div className="dashboard-grid">
-        <PaceSection data={data} />
         <CategoryBreakdown data={data} />
+        <PaceSection data={data} />
       </div>
 
       {upcoming.length > 0 && <UpcomingSection upcoming={upcoming} />}
@@ -64,56 +83,8 @@ export function DashboardPage() {
   );
 }
 
-/* ============ Próximos cargos recurrentes ============ */
-function UpcomingSection({ upcoming }) {
-  const total = upcoming.reduce((s, u) => s + Number(u.amount_cents), 0);
-
-  return (
-    <section className="panel-block upcoming-section">
-      <div className="upcoming-head">
-        <h2 className="block-title">Próximos cargos · 30 días</h2>
-        <div className="upcoming-total mono tabular">
-          {formatEur(total, { withCents: false })}
-        </div>
-      </div>
-      <ul className="upcoming-list">
-        {upcoming.map((u) => (
-          <li key={u.id} className="upcoming-row">
-            <div className="upcoming-date mono">
-              {formatUpcomingDate(u.next_date)}
-            </div>
-            <span
-              className="cat-dot"
-              style={{ background: `#${u.category_color || '8B8B8B'}` }}
-            />
-            <div className="upcoming-name">{u.description}</div>
-            <div className="upcoming-amount mono tabular">{formatEur(u.amount_cents)}</div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function formatUpcomingDate(iso) {
-  const [, m, d] = iso.split('-').map(Number);
-  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  const today = new Date().toISOString().slice(0, 10);
-  const tomorrow = (() => {
-    const t = new Date();
-    t.setDate(t.getDate() + 1);
-    return t.toISOString().slice(0, 10);
-  })();
-  if (iso === today) return 'hoy';
-  if (iso === tomorrow) return 'mañana';
-  return `${d} ${months[m - 1]}`;
-}
-
-/* ============ Big number — protagoniza "lo que queda" si hay presupuesto ============ */
-function BigNumber({ data }) {
-  const delta = data.deltaVsPreviousPct;
-  const hasDelta = delta !== null && Number.isFinite(delta);
-
+/* ============= Hero Card con donut ============= */
+function HeroCard({ data }) {
   const budget = data.monthlyBudgetCents;
   const spent = data.currentMonth.totalCents;
   const projected = data.currentMonth.projectedTotalCents;
@@ -121,157 +92,201 @@ function BigNumber({ data }) {
   const daysLeft = Math.max(0, daysInMonth - daysElapsed);
 
   const hasBudget = budget && budget > 0;
+  const remaining = hasBudget ? budget - spent : 0;
+  const overBudget = hasBudget && remaining < 0;
+  const willOverBudget = hasBudget && !overBudget && projected > budget;
 
-  // Sin presupuesto → modo clásico (gasto del mes en grande)
+  const status = !hasBudget ? 'neutral' : overBudget ? 'over' : willOverBudget ? 'warn' : 'ok';
+  const usedPct = hasBudget ? Math.min(100, (spent / budget) * 100) : 0;
+
+  // Animación de números al cargar / actualizar
+  const animatedSpent = useCountUp(spent);
+  const animatedRemaining = useCountUp(Math.abs(remaining));
+
   if (!hasBudget) {
-    const { integer, decimal } = splitEur(spent);
     return (
-      <section className="big-number">
-        <div className="big-number-label">Gasto del mes</div>
-        <div className="big-number-value mono tabular">
-          <span className="big-int">{integer}</span>
-          <span className="big-dec">,{decimal} €</span>
-        </div>
-        {hasDelta && (
-          <div className={`big-delta ${delta >= 0 ? 'up' : 'down'}`}>
-            {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%{' '}
-            <span className="big-delta-label">vs mes anterior</span>
+      <section className="hero-card hero-no-budget">
+        <div className="hero-no-budget-content">
+          <div className="hero-label">Gasto del mes</div>
+          <div className="hero-amount-big mono tabular">
+            {formatEur(animatedSpent)}
           </div>
-        )}
-        <div className="big-budget-hint">
-          <Link to="/ajustes" className="big-budget-link">Fijar presupuesto mensual →</Link>
+          <Link to="/ajustes" className="hero-action">
+            Fijar presupuesto mensual →
+          </Link>
         </div>
       </section>
     );
   }
 
-  // Con presupuesto → "Te quedan X" como protagonista
-  const remaining = budget - spent;
-  const overBudget = remaining < 0;
-  const willOverBudget = !overBudget && projected > budget;
-  const usedPct = Math.min(100, (spent / budget) * 100);
-
-  // Ritmo diario seguro: lo que puedes gastar cada día restante para no pasarte
-  const safeDaily = daysLeft > 0 ? Math.max(0, remaining) / daysLeft : 0;
-  const actualDaily = data.currentMonth.dailyAverageCents;
-
-  const remainingAbs = Math.abs(remaining);
-  const { integer, decimal } = splitEur(remainingAbs);
-
-  const status = overBudget ? 'over' : willOverBudget ? 'warn' : 'ok';
+  const ringColor = `var(--ring-${status})`;
 
   return (
-    <section className="big-number">
-      <div className="big-number-label">
-        {overBudget ? 'Te has pasado' : 'Te quedan este mes'}
-      </div>
-      <div className={`big-number-value mono tabular status-${status}`}>
-        {overBudget && <span className="big-sign">−</span>}
-        <span className="big-int">{integer}</span>
-        <span className="big-dec">,{decimal} €</span>
-      </div>
-
-      <div className="big-meta">
-        <span className="big-spent mono tabular">
-          {formatEur(spent, { withCents: false })} de {formatEur(budget, { withCents: false })}
-        </span>
-        {hasDelta && (
-          <span className={`big-delta-inline ${delta >= 0 ? 'up' : 'down'}`}>
-            {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}% vs mes anterior
-          </span>
-        )}
+    <section className={`hero-card status-${status}`}>
+      <div className="hero-ring">
+        <ProgressRing
+          value={usedPct}
+          size={180}
+          strokeWidth={10}
+          color={ringColor}
+          trackColor="var(--line)"
+        >
+          <div className="ring-pct mono tabular">{Math.round(usedPct)}<span>%</span></div>
+          <div className="ring-pct-label">presupuesto</div>
+        </ProgressRing>
       </div>
 
-      <div className="budget-progress">
-        <div className="budget-bar">
-          <div
-            className={`budget-fill ${status}`}
-            style={{ width: `${usedPct}%` }}
-          />
-          {/* Marca del día actual del mes */}
-          {!overBudget && (
-            <div
-              className="budget-day-marker"
-              style={{ left: `${(daysElapsed / daysInMonth) * 100}%` }}
-              title={`Día ${daysElapsed} de ${daysInMonth}`}
-            />
-          )}
+      <div className="hero-info">
+        <div className="hero-row">
+          <div className="hero-stat">
+            <div className="hero-stat-label">Gastado</div>
+            <div className="hero-stat-value hero-stat-spent mono tabular">
+              {formatEur(animatedSpent, { withCents: false })}
+            </div>
+          </div>
+
+          <div className="hero-divider" />
+
+          <div className="hero-stat">
+            <div className="hero-stat-label">{overBudget ? 'Excedido' : 'Te quedan'}</div>
+            <div className={`hero-stat-value mono tabular hero-stat-remaining status-${status}`}>
+              {overBudget && <span className="hero-sign">−</span>}
+              {formatEur(animatedRemaining, { withCents: false })}
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="big-projection">
-        {overBudget && (
-          <>
-            <span className="proj-icon">⚠</span>
-            <span>Llevas {formatEur(remainingAbs, { withCents: false })} por encima del presupuesto</span>
-          </>
-        )}
-        {willOverBudget && (
-          <>
-            <span className="proj-icon">⚠</span>
-            <span>
-              A este ritmo cerrarás en{' '}
-              <strong className="mono tabular">{formatEur(projected, { withCents: false })}</strong>
-              {' '}— {formatEur(projected - budget, { withCents: false })} por encima
-            </span>
-          </>
-        )}
-        {!overBudget && !willOverBudget && daysLeft > 0 && (
-          <>
-            <span className="proj-icon ok">✓</span>
-            <span>
-              Quedan <strong className="mono">{daysLeft}</strong> días.
-              Puedes gastar hasta{' '}
-              <strong className="mono tabular">{formatEur(safeDaily, { withCents: false })}</strong>
-              {' '}al día
-              {actualDaily > 0 && actualDaily < safeDaily && (
-                <span className="proj-positive"> · vas {Math.round(((safeDaily - actualDaily) / safeDaily) * 100)}% bajo el ritmo</span>
-              )}
-            </span>
-          </>
-        )}
-        {!overBudget && !willOverBudget && daysLeft === 0 && (
-          <>
-            <span className="proj-icon ok">✓</span>
-            <span>Has cerrado el mes con {formatEur(remaining, { withCents: false })} de margen</span>
-          </>
-        )}
+        <div className="hero-budget-line mono tabular">
+          de <strong>{formatEur(budget, { withCents: false })}</strong>
+          <span className="hero-sep">·</span>
+          día <strong>{daysElapsed}</strong> de {daysInMonth}
+        </div>
+
+        <HeroProjection
+          status={status}
+          remaining={remaining}
+          projected={projected}
+          budget={budget}
+          daysLeft={daysLeft}
+        />
       </div>
     </section>
   );
 }
 
-/* ============ Ritmo diario y proyección ============ */
+function HeroProjection({ status, remaining, projected, budget, daysLeft }) {
+  if (status === 'over') {
+    return (
+      <div className="hero-projection over">
+        <span className="proj-icon" />
+        Has superado tu presupuesto en{' '}
+        <strong className="mono tabular">{formatEur(Math.abs(remaining), { withCents: false })}</strong>
+      </div>
+    );
+  }
+  if (status === 'warn') {
+    return (
+      <div className="hero-projection warn">
+        <span className="proj-icon" />
+        A este ritmo cerrarás en{' '}
+        <strong className="mono tabular">{formatEur(projected, { withCents: false })}</strong>
+        {' '}— {formatEur(projected - budget, { withCents: false })} sobre límite
+      </div>
+    );
+  }
+  if (daysLeft === 0) {
+    return (
+      <div className="hero-projection ok">
+        <span className="proj-icon" />
+        Mes cerrado con {formatEur(remaining, { withCents: false })} de margen
+      </div>
+    );
+  }
+  const safeDaily = remaining / daysLeft;
+  return (
+    <div className="hero-projection ok">
+      <span className="proj-icon" />
+      Puedes gastar{' '}
+      <strong className="mono tabular">{formatEur(safeDaily, { withCents: false })}</strong>
+      {' '}al día durante {daysLeft} días
+    </div>
+  );
+}
+
+/* ============= Grid de stats ============= */
+function StatGrid({ data }) {
+  const { currentMonth, period, deltaVsPreviousPct, monthlyBudgetCents } = data;
+  const hasDelta = deltaVsPreviousPct !== null && Number.isFinite(deltaVsPreviousPct);
+  const hasBudget = monthlyBudgetCents && monthlyBudgetCents > 0;
+  const remaining = hasBudget ? monthlyBudgetCents - currentMonth.totalCents : null;
+  const daysLeft = Math.max(0, period.daysInMonth - period.daysElapsed);
+
+  return (
+    <div className="stat-grid">
+      <StatCard
+        label="Diario medio"
+        value={formatEur(currentMonth.dailyAverageCents, { withCents: false })}
+        delta={hasDelta ? deltaVsPreviousPct : null}
+        deltaLabel="vs mes anterior"
+      />
+      <StatCard
+        label="Proyección fin de mes"
+        value={formatEur(currentMonth.projectedTotalCents, { withCents: false })}
+        sub={hasBudget ?
+          (currentMonth.projectedTotalCents > monthlyBudgetCents
+            ? `+${formatEur(currentMonth.projectedTotalCents - monthlyBudgetCents, { withCents: false })} sobre límite`
+            : `${formatEur(monthlyBudgetCents - currentMonth.projectedTotalCents, { withCents: false })} bajo límite`)
+          : null
+        }
+        subTone={hasBudget && currentMonth.projectedTotalCents > monthlyBudgetCents ? 'negative' : 'positive'}
+      />
+      <StatCard
+        label="Días restantes"
+        value={String(daysLeft)}
+        sub={`de ${period.daysInMonth} días totales`}
+      />
+      {hasBudget && (
+        <StatCard
+          label={remaining < 0 ? 'Excedido' : 'Margen restante'}
+          value={formatEur(Math.abs(remaining), { withCents: false })}
+          tone={remaining < 0 ? 'negative' : 'neutral'}
+          sub={remaining >= 0 && daysLeft > 0
+            ? `≈ ${formatEur(remaining / daysLeft, { withCents: false })}/día`
+            : null
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub, subTone, delta, deltaLabel, tone = 'neutral' }) {
+  return (
+    <div className={`stat-card tone-${tone}`}>
+      <div className="stat-card-label">{label}</div>
+      <div className="stat-card-value mono tabular">{value}</div>
+      {delta !== null && delta !== undefined && (
+        <div className={`stat-card-delta ${delta >= 0 ? 'up' : 'down'}`}>
+          {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}% <span>{deltaLabel}</span>
+        </div>
+      )}
+      {sub && <div className={`stat-card-sub ${subTone || ''}`}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ============= Ritmo (gráfico de barras del mes) ============= */
 function PaceSection({ data }) {
-  const { currentMonth, period, dailyTotals } = data;
-  const projected = currentMonth.projectedTotalCents;
+  const { period, dailyTotals } = data;
   const elapsed = period.daysElapsed;
   const total = period.daysInMonth;
   const elapsedPct = (elapsed / total) * 100;
-
-  // Línea horizontal con marcas diarias
   const maxDay = Math.max(1, ...dailyTotals.map((d) => d.totalCents));
 
   return (
     <section className="panel-block">
-      <h2 className="block-title">Ritmo</h2>
+      <h2 className="block-title">Actividad diaria</h2>
 
-      <div className="pace-stats">
-        <div className="stat">
-          <div className="stat-label">Diario medio</div>
-          <div className="stat-value mono tabular">
-            {formatEur(currentMonth.dailyAverageCents, { withCents: false })}
-          </div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Proyección fin de mes</div>
-          <div className="stat-value mono tabular">
-            {formatEur(projected, { withCents: false })}
-          </div>
-        </div>
-      </div>
-
-      {/* Mini-gráfico de barras del mes */}
       <div className="pace-chart" aria-label="Gasto diario del mes">
         {Array.from({ length: total }).map((_, i) => {
           const day = i + 1;
@@ -280,11 +295,12 @@ function PaceSection({ data }) {
           const value = point?.totalCents || 0;
           const heightPct = maxDay > 0 ? (value / maxDay) * 100 : 0;
           const isFuture = day > elapsed;
+          const isToday = day === elapsed;
           return (
             <div
               key={day}
-              className={`pace-bar ${isFuture ? 'future' : ''}`}
-              style={{ height: `${heightPct}%` }}
+              className={`pace-bar ${isFuture ? 'future' : ''} ${isToday ? 'today' : ''}`}
+              style={{ height: `${Math.max(2, heightPct)}%` }}
               title={value > 0 ? `${formatEur(value)} · día ${day}` : `día ${day}`}
             />
           );
@@ -305,14 +321,14 @@ function PaceSection({ data }) {
           />
         </div>
         <div className="pace-progress-text">
-          Día {elapsed} de {total}
+          {Math.round(elapsedPct)}% del mes
         </div>
       </div>
     </section>
   );
 }
 
-/* ============ Distribución por categoría ============ */
+/* ============= Distribución por categoría ============= */
 function CategoryBreakdown({ data }) {
   const total = data.currentMonth.totalCents;
   const items = data.byCategory.filter((c) => c.totalCents > 0);
@@ -322,9 +338,7 @@ function CategoryBreakdown({ data }) {
       <h2 className="block-title">Por categoría</h2>
 
       {items.length === 0 ? (
-        <div className="empty-state">
-          Aún no hay gastos este mes
-        </div>
+        <div className="empty-state">Aún no hay gastos este mes</div>
       ) : (
         <ul className="cat-list">
           {items.map((c) => {
@@ -355,4 +369,79 @@ function CategoryBreakdown({ data }) {
       )}
     </section>
   );
+}
+
+/* ============= Próximos cargos ============= */
+function UpcomingSection({ upcoming }) {
+  const total = upcoming.reduce((s, u) => s + Number(u.amount_cents), 0);
+
+  return (
+    <section className="panel-block upcoming-section">
+      <div className="upcoming-head">
+        <h2 className="block-title">Próximos cargos · 30 días</h2>
+        <div className="upcoming-total mono tabular">
+          {formatEur(total, { withCents: false })}
+        </div>
+      </div>
+      <ul className="upcoming-list">
+        {upcoming.map((u) => (
+          <li key={u.id} className="upcoming-row">
+            <div className="upcoming-date mono">
+              {formatUpcomingDate(u.next_date)}
+            </div>
+            <span
+              className="cat-dot"
+              style={{ background: `#${u.category_color || '8B8B8B'}` }}
+            />
+            <div className="upcoming-name">{u.description}</div>
+            <div className="upcoming-amount mono tabular">{formatEur(u.amount_cents)}</div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/* ============= Skeleton ============= */
+function DashboardSkeleton() {
+  return (
+    <div className="dashboard-skeleton">
+      <div className="skeleton-line w-80" />
+      <div className="skeleton-line w-200 h-32" style={{ marginTop: 'var(--s-2)' }} />
+      <div className="skeleton-input" />
+      <div className="skeleton-hero" />
+      <div className="skeleton-stats">
+        <div className="skeleton-stat" />
+        <div className="skeleton-stat" />
+        <div className="skeleton-stat" />
+        <div className="skeleton-stat" />
+      </div>
+    </div>
+  );
+}
+
+/* ============= Helpers ============= */
+function buildDailySeries(data) {
+  const { period, dailyTotals } = data;
+  const series = [];
+  for (let day = 1; day <= period.daysElapsed; day++) {
+    const dayStr = `${period.year}-${String(period.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const point = dailyTotals.find((d) => d.day === dayStr);
+    series.push((point?.totalCents || 0) / 100);
+  }
+  return series;
+}
+
+function formatUpcomingDate(iso) {
+  const [, m, d] = iso.split('-').map(Number);
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = (() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return t.toISOString().slice(0, 10);
+  })();
+  if (iso === today) return 'hoy';
+  if (iso === tomorrow) return 'mañana';
+  return `${d} ${months[m - 1]}`;
 }
