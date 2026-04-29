@@ -1,0 +1,170 @@
+.install-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 0 0 var(--s-5);
+  position: relative;
+  animation: slideDown 300ms ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.install-banner-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--bg-elev);
+  border-radius: 8px;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.install-banner-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.install-banner-title {
+  font-size: var(--t-body);
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+
+.install-banner-sub {
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+  margin-top: 1px;
+  letter-spacing: -0.005em;
+}
+
+.install-banner-btn {
+  padding: 8px 14px;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius);
+  font-size: var(--t-small);
+  font-weight: 500;
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+.install-banner-btn:hover { background: #2a2a2a; }
+
+.install-banner-close {
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  color: var(--ink-muted);
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background var(--transition), color var(--transition);
+}
+.install-banner-close:hover {
+  background: var(--bg-elev);
+  color: var(--ink);
+}
+
+/* Modal con instrucciones para iOS */
+.install-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: var(--s-4);
+  animation: fadeIn 150ms ease-out;
+}
+
+.install-modal {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: var(--s-6);
+  width: 100%;
+  max-width: 420px;
+  animation: slideUp 250ms ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.install-modal-title {
+  font-size: var(--t-h2);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--s-4);
+  color: var(--ink);
+}
+
+.install-steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0 0 var(--s-5);
+  padding: 0;
+}
+
+.install-steps li {
+  counter-increment: step;
+  position: relative;
+  padding: var(--s-3) 0 var(--s-3) 36px;
+  font-size: var(--t-body);
+  color: var(--ink-soft);
+  line-height: 1.5;
+  border-bottom: 1px solid var(--line-soft);
+}
+.install-steps li:last-child { border-bottom: none; }
+
+.install-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: var(--s-3);
+  width: 24px;
+  height: 24px;
+  background: var(--bg-elev);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--t-small);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.install-steps strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.ios-share-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 4px;
+  color: #007AFF;
+}
+
+.install-modal-ok {
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .install-banner {
+    padding: var(--s-3);
+  }
+  .install-banner-sub { display: none; }
+}

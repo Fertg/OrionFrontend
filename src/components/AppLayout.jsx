@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Logo, WordMark } from './Logo.jsx';
 import { IconHome, IconList, IconRepeat, IconSettings } from './Icons.jsx';
+import { InstallBanner } from './InstallBanner.jsx';
 import './AppLayout.css';
 
 const NAV_ITEMS = [
@@ -70,6 +71,7 @@ export function AppLayout() {
       </header>
 
       <main className="main">
+        <InstallBanner />
         <Outlet />
       </main>
 
